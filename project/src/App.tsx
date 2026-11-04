@@ -1,17 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LoginPage } from './LoginPage';
 import {
   Activity, AlertCircle, ArrowDown, ArrowUp, Bell, BookOpen, Box, Check,
   CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cloud, Database,
   Download, FileCheck2, FileText, Filter, Globe2, HardDrive, KeyRound,
-  LayoutDashboard, LockKeyhole, Menu, Moon, MoreHorizontal, Network,
+  LayoutDashboard, LockKeyhole, LogOut, Menu, Moon, MoreHorizontal, Network,
   RefreshCw, Search, Server, Settings, Shield, ShieldCheck, Sparkles,
   Sun, Terminal, UserRound, Users, X, Zap,
 } from 'lucide-react';
+import { checkBackendHealth, runS3Scan, type BackendHealth, type ScanResponse } from './services/api';
 
 type Page = 'Overview' | 'Cloud Assets' | 'Security Findings' | 'IAM Security' | 'Storage Security' | 'Network Security' | 'Compliance' | 'Remediation Center' | 'Security Reports' | 'Settings';
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
 type FindingStatus = 'Open' | 'Resolved';
 type Theme = 'light' | 'dark';
+type Role = 'admin' | 'user';
+
+type User = {
+  name: string;
+  email: string;
+  role: Role;
+  title: string;
+  initials: string;
+};
+
+const defaultUsers: Record<Role, User> = {
+  admin: {
+    name: 'Jordan Davis',
+    email: 'admin@cloudguard.io',
+    role: 'admin',
+    title: 'Workspace Owner & Admin',
+    initials: 'JD',
+  },
+  user: {
+    name: 'Alex Morgan',
+    email: 'alex.morgan@cloudguard.io',
+    role: 'user',
+    title: 'Security Analyst',
+    initials: 'AM',
+  },
+};
 
 type Finding = {
   id: number; title: string; severity: Severity; resource: string; category: string;
@@ -64,6 +92,35 @@ function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [showDemo, setShowDemo] = useState(false);
+  const [backendHealth, setBackendHealth] = useState<BackendHealth | null>(null);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+
+  useEffect(() => {
+    checkBackendHealth().then(setBackendHealth);
+  }, []);
+
+  const handleScanComplete = (res: ScanResponse) => {
+    const sevMap: Record<string, Severity> = {
+      CRITICAL: 'Critical',
+      HIGH: 'High',
+      MEDIUM: 'Medium',
+      LOW: 'Low',
+      INFO: 'Low',
+    };
+    const newFindings: Finding[] = res.findings.map((bf, idx) => ({
+      id: Date.now() + idx,
+      title: bf.title,
+      severity: sevMap[bf.severity] || 'Medium',
+      resource: bf.resource_id,
+      category: 'Storage Security',
+      description: bf.description,
+      impact: 'Detected by CloudGuard S3 posture scanner.',
+      recommendation: bf.recommendation,
+      evidence: JSON.stringify(bf.evidence, null, 2),
+      status: 'Open' as FindingStatus,
+    }));
+    setFindings((prev) => [...newFindings, ...prev.filter((f) => !newFindings.some((nf) => nf.resource === f.resource && nf.title === f.title))]);
+  };
   const [theme, setTheme] = useState<Theme>(() => {
     try {
       const saved = localStorage.getItem('cloudguard-theme') as Theme | null;
@@ -102,7 +159,28 @@ function App() {
     setSelectedFinding(null);
   };
 
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('cloudguard-user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('cloudguard-user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('cloudguard-user');
+    }
+  }, [user]);
+
   const navigate = (next: Page) => { setPage(next); setMobileNav(false); setSelectedFinding(null); };
+
+  if (!user) {
+    return <LoginPage onLogin={setUser} theme={theme} onToggleTheme={toggleTheme} />;
+  }
 
   return (
     <div className="app-shell">
@@ -110,27 +188,53 @@ function App() {
         <div className="brand"><div className="brand-mark"><ShieldCheck size={21} /></div><div><strong>CloudGuard</strong><span>SME security platform</span></div></div>
         <div className="environment"><span className="live-dot" /> Demo environment <ChevronDown size={14} /></div>
         <nav className="side-nav">{navItems.map(({ label, icon }) => <button key={label} className={page === label ? 'nav-active' : ''} onClick={() => navigate(label)}><Icon name={icon} /><span>{label}</span>{label === 'Security Findings' && openFindings.length > 0 && <b>{openFindings.length}</b>}</button>)}</nav>
-        <div className="sidebar-footer"><div className="help-card"><CircleHelp size={18} /><div><strong>Need a hand?</strong><span>Explore the security guide</span></div><ChevronRight size={15} /></div><div className="user-card"><div className="avatar">JD</div><div><strong>Jordan Davis</strong><span>Workspace owner</span></div><MoreHorizontal size={17} /></div></div>
+        <div className="sidebar-footer">
+          <div className="help-card"><CircleHelp size={18} /><div><strong>Need a hand?</strong><span>Explore the security guide</span></div><ChevronRight size={15} /></div>
+          <div className="user-card">
+            <div className="avatar">{user.initials}</div>
+            <div>
+              <strong>{user.name}</strong>
+              <span className={`role-badge ${user.role}`}>{user.role === 'admin' ? 'Admin' : 'Analyst'}</span>
+            </div>
+            <button className="icon-btn logout-btn" onClick={() => setUser(null)} title="Sign out" aria-label="Sign out">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
       </aside>
       <main className="main-area">
-        <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav((v) => !v)}><Menu size={21} /></button><div className="crumb"><span>Workspace</span><ChevronRight size={14} /><strong>{page}</strong></div><div className="top-actions"><label className="search"><Search size={17} /><input placeholder="Search anything..." value={query} onChange={(e) => setQuery(e.target.value)} /><kbd>⌘ K</kbd></label><button className="icon-btn theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle theme">{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button><button className="icon-btn" onClick={() => setNotifications((v) => !v)}><Bell size={18} /><i /></button><button className="org-switch"><span className="aws-dot">A</span><span>Acme Industries</span><ChevronDown size={15} /></button><div className="top-avatar">JD</div></div></header>
+        <header className="topbar">
+          <button className="mobile-menu" onClick={() => setMobileNav((v) => !v)}><Menu size={21} /></button>
+          <div className="crumb"><span>Workspace</span><ChevronRight size={14} /><strong>{page}</strong></div>
+          <div className="top-actions">
+            <label className="search"><Search size={17} /><input placeholder="Search anything..." value={query} onChange={(e) => setQuery(e.target.value)} /><kbd>⌘ K</kbd></label>
+            <button className={`role-switcher-pill ${user.role}`} onClick={() => setUser(user.role === 'admin' ? defaultUsers.user : defaultUsers.admin)} title="Click to quickly switch role (Admin / Analyst)">
+              <span className="role-dot" />{user.role === 'admin' ? 'Admin' : 'Analyst'}
+            </button>
+            <button className="icon-btn theme-toggle" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle theme">{theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}</button>
+            <button className="icon-btn" onClick={() => setNotifications((v) => !v)}><Bell size={18} /><i /></button>
+            <button className="org-switch"><span className="aws-dot">A</span><span>Acme Industries</span><ChevronDown size={15} /></button>
+            <div className="top-avatar" title={`${user.name} (${user.title})`}>{user.initials}</div>
+          </div>
+        </header>
         <div className="content">
-          <div className="demo-banner"><div><span className="demo-label"><Sparkles size={13} /> DEMO DATA</span><span>Simulated AWS environment · No live infrastructure is connected</span></div><button onClick={() => setShowDemo(true)}>What does this mean? <ChevronRight size={14} /></button></div>
+          <div className="demo-banner"><div><span className="demo-label"><Sparkles size={13} /> {backendHealth ? 'FASTAPI BACKEND CONNECTED' : 'DEMO DATA'}</span><span>{backendHealth ? 'Connected to FastAPI S3 Scanner (:8000) · Boto3 STS AssumeRole ready' : 'Simulated AWS environment · Connect FastAPI backend for live S3 scans'}</span></div><button onClick={() => setShowDemo(true)}>What does this mean? <ChevronRight size={14} /></button></div>
           {notifications && <div className="notification-pop"><div className="pop-head"><strong>Notifications</strong><span>3 new</span></div><p><AlertCircle size={15} /> Critical finding needs attention</p><p><CheckCircle2 size={15} /> Weekly assessment completed</p><p><Activity size={15} /> New asset discovered</p></div>}
-          {page === 'Overview' && <Overview score={score} counts={counts} openFindings={openFindings} onFinding={setSelectedFinding} navigate={navigate} />}
-          {page === 'Cloud Assets' && <AssetsPage query={query} onAsset={(asset) => setSelectedFinding({ id: 0, title: asset.name, severity: asset.risk === 'None' ? 'Low' : asset.risk, resource: asset.name, category: asset.type, description: `${asset.type} discovered in the simulated AWS environment.`, impact: 'Review the resource posture and associated findings before making production decisions.', recommendation: 'Review the resource configuration and follow the linked security recommendations.', evidence: `Region: ${asset.region}\nStatus: ${asset.status}\nLast assessed: ${asset.assessed}`, status: 'Open' })} />}
+          {page === 'Overview' && <Overview score={score} counts={counts} openFindings={openFindings} onFinding={setSelectedFinding} navigate={navigate} user={user} />}
+          {page === 'Cloud Assets' && <AssetsPage query={query} onScan={() => setScanModalOpen(true)} onAsset={(asset) => setSelectedFinding({ id: 0, title: asset.name, severity: asset.risk === 'None' ? 'Low' : asset.risk, resource: asset.name, category: asset.type, description: `${asset.type} discovered in the simulated AWS environment.`, impact: 'Review the resource posture and associated findings before making production decisions.', recommendation: 'Review the resource configuration and follow the linked security recommendations.', evidence: `Region: ${asset.region}\nStatus: ${asset.status}\nLast assessed: ${asset.assessed}`, status: 'Open' })} />}
           {page === 'Security Findings' && <FindingsPage findings={findings} query={query} severity={severityFilter} status={statusFilter} setSeverity={setSeverityFilter} setStatus={setStatusFilter} onFinding={setSelectedFinding} />}
           {page === 'IAM Security' && <IAMPage />}
-          {page === 'Storage Security' && <StoragePage />}
+          {page === 'Storage Security' && <StoragePage onScan={() => setScanModalOpen(true)} />}
           {page === 'Network Security' && <NetworkPage />}
           {page === 'Compliance' && <CompliancePage />}
           {page === 'Remediation Center' && <RemediationPage findings={openFindings} onFinding={setSelectedFinding} />}
           {page === 'Security Reports' && <ReportsPage score={score} counts={counts} findings={findings} />}
-          {page === 'Settings' && <SettingsPage theme={theme} setTheme={setTheme} />}
+          {page === 'Settings' && <SettingsPage theme={theme} setTheme={setTheme} backendHealth={backendHealth} onRefreshHealth={() => checkBackendHealth().then(setBackendHealth)} userRole={user.role} />}
         </div>
       </main>
-      {selectedFinding && <FindingModal finding={selectedFinding} onClose={() => setSelectedFinding(null)} onResolve={resolveFinding} />}
+      {selectedFinding && <FindingModal finding={selectedFinding} user={user} onClose={() => setSelectedFinding(null)} onResolve={resolveFinding} />}
       {showDemo && <DemoModal onClose={() => setShowDemo(false)} />}
+      {scanModalOpen && <ScanModal onClose={() => setScanModalOpen(false)} backendHealth={backendHealth} onScanComplete={handleScanComplete} />}
     </div>
   );
 }
@@ -179,20 +283,118 @@ function Overview({ score, counts, openFindings, onFinding, navigate }: { score:
   return <><PageHeader eyebrow="Security overview" title="Good morning, Jordan" description="Here’s what’s happening across your cloud environment today." action={<button className="secondary-btn" onClick={() => navigate('Security Reports')}><Download size={16} /> Export report</button>} /><section className="hero-grid"><div className="score-card"><div className="card-title"><div><span className="eyebrow">Overall security score</span><h2>{score}<small>/100</small></h2></div><span className="trend"><ArrowUp size={14} /> 6.4%</span></div><div className="score-ring" style={{ '--score': `${score * 3.6}deg` } as React.CSSProperties}><div><strong>{score}</strong><span>Healthy</span></div></div><div className="score-foot"><span><CheckCircle2 size={15} /> 12 controls improved</span><button onClick={() => navigate('Compliance')}>View score details <ChevronRight size={14} /></button></div></div><div className="posture-card panel"><div className="panel-head"><div><span className="eyebrow">Security posture</span><h3>Control coverage</h3></div><button className="more-btn"><MoreHorizontal size={18} /></button></div><div className="posture-list">{[['IAM Security', 75, '#2269d4'], ['Storage Security', 82, '#37a078'], ['Network Security', 61, '#e2a72e'], ['Logging & Monitoring', 54, '#df7748'], ['Encryption & Backup', 70, '#5278b9']].map(([name, val, color]) => <div className="posture-row" key={name as string}><span>{name as string}</span><div className="bar"><i style={{ width: `${val}%`, background: color as string }} /></div><strong>{val as number}%</strong></div>)}</div><div className="chart-note"><Activity size={14} /> Based on 28 assessed controls <span>Last scan 8 min ago</span></div></div></section><section className="stat-grid">{[['Cloud assets', '42', '8 types discovered', Box, 'blue'], ['Critical findings', String(counts.Critical), 'Needs immediate action', AlertCircle, 'red'], ['High findings', String(counts.High), 'Requires attention', Zap, 'orange'], ['Resolved findings', String(counts.Resolved + 12), '+4 this month', CheckCircle2, 'green']].map(([label, value, note, icon, color]) => <div className="stat-card" key={label as string}><div className={`stat-icon ${color}`}><Icon name={icon as typeof Box} size={18} /></div><div><span>{label as string}</span><strong>{value as string}</strong><small>{note as string}</small></div></div>)}</section><section className="overview-bottom"><div className="panel distribution"><div className="panel-head"><div><span className="eyebrow">Risk distribution</span><h3>Open findings by severity</h3></div><button className="text-btn" onClick={() => navigate('Security Findings')}>View all <ChevronRight size={14} /></button></div><div className="distribution-content"><div className="donut" style={{ '--critical': `${counts.Critical * 36}deg`, '--high': `${counts.High * 36}deg` } as React.CSSProperties}><div><strong>{openFindings.length}</strong><span>open issues</span></div></div><div className="legend">{[['Critical', counts.Critical, 'critical'], ['High', counts.High, 'high'], ['Medium', counts.Medium, 'medium'], ['Low', counts.Low, 'low']].map(([name, val, tone]) => <div key={name as string}><i className={`legend-dot ${tone}`} /><span>{name as string}</span><strong>{val as number}</strong></div>)}</div></div></div><div className="panel timeline"><div className="panel-head"><div><span className="eyebrow">Recent activity</span><h3>Security activity</h3></div><button className="more-btn"><MoreHorizontal size={18} /></button></div><div className="activity-list"><ActivityItem icon={AlertCircle} tone="red" title="Public S3 bucket detected" meta="company-documents · 2 min ago" /><ActivityItem icon={KeyRound} tone="orange" title="IAM user without MFA detected" meta="admin-user · 7 min ago" /><ActivityItem icon={Globe2} tone="orange" title="SSH port exposed to internet" meta="production-server · 12 min ago" /><ActivityItem icon={CheckCircle2} tone="green" title="Previous security finding resolved" meta="database-server · Yesterday" /></div></div></section><section className="panel recommendations"><div className="panel-head"><div><span className="eyebrow">Priority guidance</span><h3>Recommended actions <small className="recommendations-badge">{openFindings.length} active</small></h3></div><div className="recommendations-head-actions"><div className="slider-nav-group"><button type="button" className="slider-nav-btn" onClick={() => slide('left')} disabled={!canScrollLeft} title="Previous recommendation" aria-label="Previous recommendation"><ChevronLeft size={16} /></button><button type="button" className="slider-nav-btn" onClick={() => slide('right')} disabled={!canScrollRight} title="Next recommendation" aria-label="Next recommendation"><ChevronRight size={16} /></button></div><button className="text-btn" onClick={() => navigate('Remediation Center')}>Open remediation center <ChevronRight size={14} /></button></div></div><div className="guidance-slider-container"><div className="guidance-card-slider" ref={sliderRef} onScroll={checkScroll}>{openFindings.map((f, i) => <div className="guidance-slide-card" key={f.id} onClick={() => onFinding(f)}><div className="guidance-card-top"><span className={`number ${severityClass[f.severity]}`}>0{i + 1}</span><SeverityTag severity={f.severity} /><span className="guidance-category">{f.category}</span></div><div className="guidance-card-body"><div className="guidance-resource"><Box size={13} /><code>{f.resource}</code></div><h4 className="guidance-title">{f.title}</h4><p className="guidance-recommendation">{f.recommendation}</p></div><div className="guidance-card-footer"><span className="guidance-action-text">Review and remediate</span><div className="guidance-arrow-btn"><ChevronRight size={14} /></div></div></div>)}</div>{openFindings.length > 1 && <div className="slider-pagination-dots">{openFindings.map((f, i) => <button key={f.id} type="button" className={`slider-dot ${activeDot === i ? 'active' : ''}`} onClick={() => scrollToDot(i)} aria-label={`Go to slide ${i + 1}`} />)}</div>}</div></section></>;
 }
 function ActivityItem({ icon, tone, title, meta }: { icon: typeof Activity; tone: string; title: string; meta: string }) { return <div className="activity-item"><span className={`activity-icon ${tone}`}><Icon name={icon} size={16} /></span><div><strong>{title}</strong><span>{meta}</span></div><ChevronRight size={15} /></div>; }
-function AssetsPage({ query, onAsset }: { query: string; onAsset: (asset: Asset) => void }) { const filtered = assets.filter((a) => `${a.name} ${a.type} ${a.region}`.toLowerCase().includes(query.toLowerCase())); return <><PageHeader eyebrow="Cloud inventory" title="Cloud assets" description="A live-style inventory of resources discovered in your simulated AWS environment." action={<button className="secondary-btn"><RefreshCw size={16} /> Run assessment</button>} /><div className="asset-summary"><div><Cloud size={20} /><strong>42</strong><span>Total assets</span></div><div><ShieldCheck size={20} /><strong>29</strong><span>Healthy assets</span></div><div><AlertCircle size={20} /><strong>13</strong><span>Need review</span></div><div><Globe2 size={20} /><strong>3</strong><span>Regions</span></div></div><div className="panel table-panel"><div className="table-toolbar"><div><h3>Discovered resources</h3><span>Last assessed today at 09:42 UTC</span></div><div className="toolbar-actions"><button className="filter-btn"><Filter size={15} /> Filters</button><button className="icon-btn"><Download size={16} /></button></div></div><div className="data-table"><div className="table-row table-head"><span>Resource name</span><span>Type</span><span>Region</span><span>Security status</span><span>Risk</span><span>Last assessed</span><span /></div>{filtered.map((asset) => <button className="table-row" key={asset.name} onClick={() => onAsset(asset)}><span className="resource-cell"><span className="resource-icon"><Icon name={asset.icon} size={17} /></span><strong>{asset.name}</strong></span><span>{asset.type}</span><span>{asset.region}</span><span><Status status={asset.status} /></span><span>{asset.risk !== 'None' && <SeverityTag severity={asset.risk} />}{asset.risk === 'None' && <span className="none-risk">—</span>}</span><span>{asset.assessed}</span><span><ChevronRight size={16} /></span></button>)}</div></div></>; }
+function AssetsPage({ query, onAsset, onScan }: { query: string; onAsset: (asset: Asset) => void; onScan?: () => void }) { const filtered = assets.filter((a) => `${a.name} ${a.type} ${a.region}`.toLowerCase().includes(query.toLowerCase())); return <><PageHeader eyebrow="Cloud inventory" title="Cloud assets" description="A live-style inventory of resources discovered in your simulated AWS environment." action={<button className="secondary-btn" onClick={onScan}><RefreshCw size={16} /> Run assessment</button>} /><div className="asset-summary"><div><Cloud size={20} /><strong>42</strong><span>Total assets</span></div><div><ShieldCheck size={20} /><strong>29</strong><span>Healthy assets</span></div><div><AlertCircle size={20} /><strong>13</strong><span>Need review</span></div><div><Globe2 size={20} /><strong>3</strong><span>Regions</span></div></div><div className="panel table-panel"><div className="table-toolbar"><div><h3>Discovered resources</h3><span>Last assessed today at 09:42 UTC</span></div><div className="toolbar-actions"><button className="filter-btn"><Filter size={15} /> Filters</button><button className="icon-btn"><Download size={16} /></button></div></div><div className="data-table"><div className="table-row table-head"><span>Resource name</span><span>Type</span><span>Region</span><span>Security status</span><span>Risk</span><span>Last assessed</span><span /></div>{filtered.map((asset) => <button className="table-row" key={asset.name} onClick={() => onAsset(asset)}><span className="resource-cell"><span className="resource-icon"><Icon name={asset.icon} size={17} /></span><strong>{asset.name}</strong></span><span>{asset.type}</span><span>{asset.region}</span><span><Status status={asset.status} /></span><span>{asset.risk !== 'None' && <SeverityTag severity={asset.risk} />}{asset.risk === 'None' && <span className="none-risk">—</span>}</span><span>{asset.assessed}</span><span><ChevronRight size={16} /></span></button>)}</div></div></>; }
 function Status({ status }: { status: string }) { return <span className={`status ${status === 'Healthy' ? 'healthy' : status === 'At risk' ? 'risk' : 'review'}`}><i />{status}</span>; }
 function SeverityTag({ severity }: { severity: Severity }) { return <span className={`severity-tag ${severityClass[severity]}`}><i />{severity}</span>; }
 function FindingsPage({ findings, query, severity, status, setSeverity, setStatus, onFinding }: { findings: Finding[]; query: string; severity: string; status: string; setSeverity: (v: string) => void; setStatus: (v: string) => void; onFinding: (f: Finding) => void }) { const filtered = findings.filter((f) => `${f.title} ${f.resource} ${f.category}`.toLowerCase().includes(query.toLowerCase()) && (severity === 'All severities' || f.severity === severity) && (status === 'All statuses' || f.status === status)); return <><PageHeader eyebrow="Risk center" title="Security findings" description="Prioritize and track the issues that matter most to your business." action={<button className="secondary-btn"><Download size={16} /> Export findings</button>} /><div className="finding-summary"><div className="finding-total"><strong>{findings.filter((f) => f.status === 'Open').length}</strong><span>open findings</span><small><ArrowDown size={13} /> 3 from last week</small></div>{(['Critical', 'High', 'Medium', 'Low'] as Severity[]).map((s) => <div key={s}><SeverityTag severity={s} /><strong>{findings.filter((f) => f.severity === s && f.status === 'Open').length}</strong><span>{s.toLowerCase()} priority</span></div>)}</div><div className="panel findings-panel"><div className="table-toolbar"><div><h3>All findings</h3><span>Showing {filtered.length} of {findings.length} simulated findings</span></div><div className="toolbar-actions"><select value={severity} onChange={(e) => setSeverity(e.target.value)}><option>All severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select><select value={status} onChange={(e) => setStatus(e.target.value)}><option>All statuses</option><option>Open</option><option>Resolved</option></select></div></div><div className="finding-list">{filtered.map((f) => <button className="finding-row" key={f.id} onClick={() => onFinding(f)}><span className={`finding-alert ${severityClass[f.severity]}`}><AlertCircle size={18} /></span><div className="finding-main"><strong>{f.title}</strong><span>{f.resource} · {f.category}</span></div><SeverityTag severity={f.severity} /><span className={`finding-status ${f.status.toLowerCase()}`}>{f.status === 'Resolved' && <Check size={13} />}{f.status}</span><ChevronRight size={17} /></button>)}</div></div></>; }
 function IAMPage() { return <><PageHeader eyebrow="Identity & access" title="IAM security" description="Keep privileged identities protected and access pathways accountable." action={<button className="secondary-btn"><RefreshCw size={16} /> Assess IAM</button>} /><div className="stat-grid iam-stats">{[['IAM users', '14', '2 added this month', Users, 'blue'], ['Without MFA', '3', '21% of all users', KeyRound, 'red'], ['Admin privileges', '2', 'Review recommended', Shield, 'orange'], ['Inactive users', '1', 'Last active 94 days ago', UserRound, 'green']].map(([label, value, note, icon, color]) => <div className="stat-card" key={label as string}><div className={`stat-icon ${color}`}><Icon name={icon as typeof Box} size={18} /></div><div><span>{label as string}</span><strong>{value as string}</strong><small>{note as string}</small></div></div>)}</div><div className="two-col"><div className="panel table-panel"><div className="panel-head"><div><span className="eyebrow">Identity inventory</span><h3>Users and access risk</h3></div><button className="more-btn"><MoreHorizontal size={18} /></button></div><div className="iam-table"><div className="iam-head"><span>User</span><span>MFA</span><span>Permission</span><span>Risk</span></div>{[['admin-user', 'Disabled', 'Administrator', 'Critical'], ['developer-user', 'Enabled', 'Developer', 'Low'], ['test-user', 'Disabled', 'Read Only', 'Medium']].map(([user, mfa, permission, risk]) => <div className="iam-row" key={user}><span className="resource-cell"><span className="avatar small">{(user as string).slice(0, 2).toUpperCase()}</span><strong>{user as string}</strong></span><span className={mfa === 'Enabled' ? 'mfa-on' : 'mfa-off'}>{mfa as string}</span><span>{permission as string}</span><SeverityTag severity={risk as Severity} /></div>)}</div><button className="table-link">View all IAM identities <ChevronRight size={14} /></button></div><div className="panel explanation"><div className="explain-icon"><LockKeyhole size={22} /></div><span className="eyebrow">Why it matters</span><h3>Identity is your first line of defense</h3><p>Most cloud breaches begin with a compromised identity. Strong MFA, least-privilege access and regular key rotation reduce the blast radius of an incident.</p><div className="mini-metric"><span>Access hygiene</span><strong>72%</strong><div className="bar"><i style={{ width: '72%' }} /></div></div><button className="text-btn">Explore IAM best practices <ChevronRight size={14} /></button></div></div></>; }
-function StoragePage() { const buckets = [['company-documents', 'Public', 'Enabled', 'Enabled', 'Disabled', 'Critical'], ['employee-data', 'Private', 'Disabled', 'Enabled', 'Enabled', 'Medium'], ['marketing-assets', 'Private', 'Enabled', 'Enabled', 'Enabled', 'Low'], ['audit-logs', 'Private', 'Enabled', 'Disabled', 'Enabled', 'Medium']]; return <><PageHeader eyebrow="Data protection" title="Storage security" description="Monitor buckets, encryption and public access before data becomes exposed." action={<button className="secondary-btn"><RefreshCw size={16} /> Scan storage</button>} /><div className="storage-metrics"><Metric label="Total buckets" value="8" icon={HardDrive} /><Metric label="Public buckets" value="1" icon={Globe2} tone="red" /><Metric label="Encrypted" value="6" icon={LockKeyhole} tone="green" /><Metric label="No versioning" value="2" icon={RefreshCw} tone="orange" /></div><div className="panel table-panel"><div className="table-toolbar"><div><h3>S3 bucket posture</h3><span>Configuration signals from the simulated environment</span></div><button className="filter-btn"><Filter size={15} /> Filter buckets</button></div><div className="bucket-table"><div className="table-row table-head"><span>Bucket name</span><span>Public access</span><span>Encryption</span><span>Versioning</span><span>Logging</span><span>Risk level</span></div>{buckets.map(([name, publicAccess, encryption, versioning, logging, risk]) => <div className="table-row" key={name}><span className="resource-cell"><span className="resource-icon"><HardDrive size={16} /></span><strong>{name}</strong></span><span className={publicAccess === 'Public' ? 'danger-text' : 'good-text'}>{publicAccess}</span><span>{encryption}</span><span>{versioning}</span><span>{logging}</span><SeverityTag severity={risk as Severity} /></div>)}</div></div></>; }
+function StoragePage({ onScan }: { onScan?: () => void }) { const buckets = [['company-documents', 'Public', 'Enabled', 'Enabled', 'Disabled', 'Critical'], ['employee-data', 'Private', 'Disabled', 'Enabled', 'Enabled', 'Medium'], ['marketing-assets', 'Private', 'Enabled', 'Enabled', 'Enabled', 'Low'], ['audit-logs', 'Private', 'Enabled', 'Disabled', 'Enabled', 'Medium']]; return <><PageHeader eyebrow="Data protection" title="Storage security" description="Monitor buckets, encryption and public access before data becomes exposed." action={<button className="secondary-btn" onClick={onScan}><RefreshCw size={16} /> Scan storage (FastAPI)</button>} /><div className="storage-metrics"><Metric label="Total buckets" value="8" icon={HardDrive} /><Metric label="Public buckets" value="1" icon={Globe2} tone="red" /><Metric label="Encrypted" value="6" icon={LockKeyhole} tone="green" /><Metric label="No versioning" value="2" icon={RefreshCw} tone="orange" /></div><div className="panel table-panel"><div className="table-toolbar"><div><h3>S3 bucket posture</h3><span>Configuration signals from the simulated environment</span></div><button className="filter-btn"><Filter size={15} /> Filter buckets</button></div><div className="bucket-table"><div className="table-row table-head"><span>Bucket name</span><span>Public access</span><span>Encryption</span><span>Versioning</span><span>Logging</span><span>Risk level</span></div>{buckets.map(([name, publicAccess, encryption, versioning, logging, risk]) => <div className="table-row" key={name}><span className="resource-cell"><span className="resource-icon"><HardDrive size={16} /></span><strong>{name}</strong></span><span className={publicAccess === 'Public' ? 'danger-text' : 'good-text'}>{publicAccess}</span><span>{encryption}</span><span>{versioning}</span><span>{logging}</span><SeverityTag severity={risk as Severity} /></div>)}</div></div></>; }
 function Metric({ label, value, icon, tone = 'blue' }: { label: string; value: string; icon: typeof HardDrive; tone?: string }) { return <div className="metric"><span className={`metric-icon ${tone}`}><Icon name={icon} size={17} /></span><div><strong>{value}</strong><span>{label}</span></div></div>; }
 function NetworkPage() { return <><PageHeader eyebrow="Network exposure" title="Network security" description="Understand which services are reachable and where exposure can be reduced." action={<button className="secondary-btn"><RefreshCw size={16} /> Assess network</button>} /><div className="network-hero"><div className="exposure-score"><span className="eyebrow">Exposure index</span><strong>42<span>/100</span></strong><small><ArrowDown size={13} /> 8 points safer this month</small></div><div className="exposure-bars"><span><i style={{ height: '82%' }} /><b>Critical</b></span><span><i style={{ height: '58%' }} /><b>High</b></span><span><i style={{ height: '38%' }} /><b>Medium</b></span><span><i style={{ height: '20%' }} /><b>Low</b></span><span><i style={{ height: '12%' }} /><b>Info</b></span></div><div className="network-note"><Globe2 size={18} /><div><strong>2 internet-facing rules</strong><span>Review these first to reduce attack surface.</span></div></div></div><div className="security-groups"><div className="panel group-card"><div className="group-head"><div><span className="resource-icon"><Server size={16} /></span><strong>Production-SG</strong></div><SeverityTag severity="Critical" /></div><span className="muted">production-server · us-east-1</span>{[['SSH', '22', '0.0.0.0/0', 'Critical'], ['HTTP', '80', '0.0.0.0/0', 'Low'], ['HTTPS', '443', '0.0.0.0/0', 'Low']].map(([service, port, source, risk]) => <div className="rule" key={service}><span><strong>{service}</strong><small>TCP {port}</small></span><code>{source}</code><SeverityTag severity={risk === 'Critical' ? 'Critical' : 'Low'} /></div>)}</div><div className="panel group-card"><div className="group-head"><div><span className="resource-icon"><Database size={16} /></span><strong>Database-SG</strong></div><SeverityTag severity="Critical" /></div><span className="muted">database-server · us-east-1</span><div className="rule"><span><strong>MySQL</strong><small>TCP 3306</small></span><code>0.0.0.0/0</code><SeverityTag severity="Critical" /></div><div className="secure-callout"><ShieldCheck size={16} /><span>1 rule is correctly restricted to the application tier.</span></div></div></div></>; }
 function CompliancePage() { const controls = [['Identity and Access Management', '75%', 75, 'CIS 1.x'], ['Data Protection', '80%', 80, 'NIST PR.DS'], ['Logging and Monitoring', '60%', 60, 'CIS 3.x'], ['Network Security', '70%', 70, 'CSA IVS']]; return <><PageHeader eyebrow="Governance" title="Compliance posture" description="Track illustrative control coverage across the frameworks your business cares about." action={<button className="secondary-btn"><FileCheck2 size={16} /> Select framework <ChevronDown size={14} /></button>} /><div className="prototype-note"><BookOpen size={17} /><div><strong>Prototype estimates, not certified compliance results</strong><span>Coverage is based on simulated evidence and selected controls from CIS AWS Foundations, NIST CSF 2.0 and CSA Cloud Controls Matrix Lite.</span></div></div><div className="compliance-grid">{controls.map(([label, val, width, ref]) => <div className="panel control-card" key={label}><div className="control-top"><span>{label}</span><strong>{val}</strong></div><div className="big-bar"><i style={{ width: `${width}%` }} /></div><div className="control-foot"><span>{ref}</span><span>{width as number > 70 ? 'On track' : 'Needs attention'}</span></div></div>)}</div><div className="compliance-bottom"><div className="panel control-breakdown"><div className="panel-head"><div><span className="eyebrow">Control inventory</span><h3>Assessment summary</h3></div><button className="text-btn">View framework <ChevronRight size={14} /></button></div><div className="control-stats"><div><strong>18</strong><span>Passed controls</span></div><div><strong className="orange-text">7</strong><span>Failed controls</span></div><div><strong className="muted-text">4</strong><span>Not assessed</span></div></div>{[['CIS 1.5', 'Ensure MFA is enabled for all IAM users', 'Failed'], ['NIST PR.DS-1', 'Data-at-rest is protected', 'Passed'], ['CSA IVS-02', 'Network segmentation is documented', 'Review']].map(([ref, text, status]) => <div className="control-row" key={ref}><code>{ref}</code><span>{text}</span><b className={status === 'Passed' ? 'pass' : status === 'Failed' ? 'fail' : 'review'}>{status}</b></div>)}</div><div className="panel compliance-recommendation"><div className="explain-icon"><FileCheck2 size={22} /></div><span className="eyebrow">Next best action</span><h3>Close your highest-impact gaps</h3><p>Resolve MFA and logging controls first. Together they improve both identity resilience and investigation readiness.</p><button className="primary-btn">Review recommendations <ChevronRight size={14} /></button></div></div></>; }
 function RemediationPage({ findings, onFinding }: { findings: Finding[]; onFinding: (f: Finding) => void }) { return <><PageHeader eyebrow="Take action" title="Remediation center" description="Move from insight to action with guided, simulated fixes." action={<span className="simulation-pill"><Terminal size={14} /> Simulation only</span>} /><div className="remediation-intro"><div><Zap size={22} /><div><strong>Safe by design</strong><span>Every action here is a simulation. No changes are sent to AWS.</span></div></div><div><strong>{findings.length}</strong><span>recommendations ready</span></div></div><div className="remediation-layout"><div className="panel remediation-list"><div className="panel-head"><div><span className="eyebrow">Priority queue</span><h3>Recommended fixes</h3></div><Filter size={17} /></div>{findings.map((f, i) => <button className="remediation-row" key={f.id} onClick={() => onFinding(f)}><span className={`number ${severityClass[f.severity]}`}>0{i + 1}</span><div><strong>{f.title}</strong><span>{f.resource} · {f.category}</span></div><div className="remediation-action"><SeverityTag severity={f.severity} /><ChevronRight size={16} /></div></button>)}</div><div className="panel history"><div className="panel-head"><div><span className="eyebrow">Audit trail</span><h3>Remediation history</h3></div><MoreHorizontal size={18} /></div><div className="history-item"><span className="history-icon"><Check size={15} /></span><div><strong>RDS snapshot encryption reviewed</strong><span>Completed by Jordan Davis · Yesterday</span></div></div><div className="history-item"><span className="history-icon"><Check size={15} /></span><div><strong>Developer access key rotated</strong><span>Completed by Jordan Davis · Oct 28, 2026</span></div></div><div className="empty-history"><Activity size={18} /><span>Simulated actions will appear here</span></div></div></div></>; }
 function ReportsPage({ score, counts, findings }: { score: number; counts: Record<string, number>; findings: Finding[] }) { return <><PageHeader eyebrow="Reporting" title="Security reports" description="Create a clear, shareable snapshot of your simulated assessment." action={<button className="primary-btn" onClick={() => window.print()}><Download size={16} /> Download PDF report</button>} /><div className="report-preview"><div className="report-top"><div className="brand compact"><div className="brand-mark"><ShieldCheck size={18} /></div><strong>CloudGuard SME</strong></div><span>ASSESSMENT REPORT · 02 NOV 2026</span></div><div className="report-title"><div><span className="eyebrow">Acme Industries</span><h2>Cloud security assessment</h2><p>Simulated AWS environment · Prepared for internal review</p></div><div className="report-score"><strong>{score}</strong><span>Overall score</span></div></div><div className="report-summary"><div><span>Total findings</span><strong>{findings.length}</strong></div><div><span>Critical</span><strong className="red-text">{counts.Critical}</strong></div><div><span>High</span><strong className="orange-text">{counts.High}</strong></div><div><span>Resolved</span><strong className="green-text">{counts.Resolved + 12}</strong></div></div><div className="report-section"><span className="eyebrow">Executive summary</span><h3>Security posture is improving, with focused action still required.</h3><p>The environment shows a solid foundation with a score of {score}/100. The highest-impact opportunities are public storage access, privileged identity protection and network exposure.</p></div><div className="report-section"><span className="eyebrow">Top recommendations</span>{findings.filter((f) => f.status === 'Open').slice(0, 3).map((f) => <div className="report-finding" key={f.id}><SeverityTag severity={f.severity} /><strong>{f.title}</strong><span>{f.recommendation}</span></div>)}</div></div></>; }
-function SettingsPage({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) { return <><PageHeader eyebrow="Workspace" title="Settings" description="Manage how your team experiences the CloudGuard SME demo." action={<button className="primary-btn"><Check size={16} /> Save changes</button>} /><div className="settings-grid"><div className="panel settings-card"><div className="settings-head"><div className="settings-icon">{theme === 'dark' ? <Moon size={19} /> : <Sun size={19} />}</div><div><h3>Appearance</h3><span>Choose between light and dark mode</span></div></div><div className="theme-toggle-group"><button type="button" className={`theme-toggle-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}><Sun size={15} /> Light mode</button><button type="button" className={`theme-toggle-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}><Moon size={15} /> Dark mode</button></div></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><BuildingIcon /></div><div><h3>Organization profile</h3><span>Used for reports and workspace identity</span></div></div><label>Company name<input value="Acme Industries" readOnly /></label><label>Workspace region<select defaultValue="North America"><option>North America</option><option>Europe</option><option>Asia Pacific</option></select></label></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Cloud size={19} /></div><div><h3>Cloud provider</h3><span>Connection settings for this prototype</span></div></div><div className="connected-row"><span className="aws-dot">A</span><div><strong>Amazon Web Services</strong><span>Demo environment</span></div><span className="connected">Connected</span></div><div className="prototype-note small"><ShieldCheck size={15} /><span>Real credentials are not requested or stored in this prototype.</span></div></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Bell size={19} /></div><div><h3>Notifications</h3><span>Choose what reaches your inbox</span></div></div>{['Critical findings', 'Weekly security digest', 'Assessment completed'].map((label, i) => <div className="toggle-row" key={label}><span>{label}</span><button className={`toggle ${i === 2 ? '' : 'on'}`}><i /></button></div>)}</div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Activity size={19} /></div><div><h3>Assessment preferences</h3><span>How your score is calculated</span></div></div><label>Assessment frequency<select defaultValue="Daily"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label><label>Risk scoring model<select defaultValue="Illustrative SME model"><option>Illustrative SME model</option><option>Conservative model</option></select></label></div></div></>; }
+function SettingsPage({ theme, setTheme, backendHealth, onRefreshHealth }: { theme: Theme; setTheme: (t: Theme) => void; backendHealth?: BackendHealth | null; onRefreshHealth?: () => void }) { return <><PageHeader eyebrow="Workspace" title="Settings" description="Manage how your team experiences the CloudGuard SME demo." action={<button className="primary-btn"><Check size={16} /> Save changes</button>} /><div className="settings-grid"><div className="panel settings-card"><div className="settings-head"><div className="settings-icon">{theme === 'dark' ? <Moon size={19} /> : <Sun size={19} />}</div><div><h3>Appearance</h3><span>Choose between light and dark mode</span></div></div><div className="theme-toggle-group"><button type="button" className={`theme-toggle-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')}><Sun size={15} /> Light mode</button><button type="button" className={`theme-toggle-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')}><Moon size={15} /> Dark mode</button></div></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Server size={19} /></div><div><h3>FastAPI Backend & S3 Scanner</h3><span>Python Boto3 posture inspection service</span></div></div><div className="connected-row"><span className="live-dot" style={{ background: backendHealth ? '#49c68d' : '#e6a63b' }} /><div><strong>{backendHealth ? 'FastAPI Service Online' : 'Backend Service Offline'}</strong><span>{backendHealth ? 'Connected to http://localhost:8000' : 'Start with: cd backend && uvicorn app.main:app --port 8000'}</span></div><span className={backendHealth ? 'connected' : 'review'}>{backendHealth ? 'Connected' : 'Offline'}</span></div><div className="prototype-note small"><ShieldCheck size={15} /><span>AWS STS scanning: {backendHealth?.aws_role_configured ? 'Role assumption active' : 'Safe demo mode (configure .env for live AWS)'}</span></div><div style={{ marginTop: '14px' }}><button type="button" className="text-btn" onClick={onRefreshHealth}><RefreshCw size={14} /> Recheck connection</button></div></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><BuildingIcon /></div><div><h3>Organization profile</h3><span>Used for reports and workspace identity</span></div></div><label>Company name<input value="Acme Industries" readOnly /></label><label>Workspace region<select defaultValue="North America"><option>North America</option><option>Europe</option><option>Asia Pacific</option></select></label></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Cloud size={19} /></div><div><h3>Cloud provider</h3><span>Connection settings for this prototype</span></div></div><div className="connected-row"><span className="aws-dot">A</span><div><strong>Amazon Web Services</strong><span>Demo environment</span></div><span className="connected">Connected</span></div><div className="prototype-note small"><ShieldCheck size={15} /><span>Real credentials are not requested or stored in this prototype.</span></div></div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Bell size={19} /></div><div><h3>Notifications</h3><span>Choose what reaches your inbox</span></div></div>{['Critical findings', 'Weekly security digest', 'Assessment completed'].map((label, i) => <div className="toggle-row" key={label}><span>{label}</span><button className={`toggle ${i === 2 ? '' : 'on'}`}><i /></button></div>)}</div><div className="panel settings-card"><div className="settings-head"><div className="settings-icon"><Activity size={19} /></div><div><h3>Assessment preferences</h3><span>How your score is calculated</span></div></div><label>Assessment frequency<select defaultValue="Daily"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></label><label>Risk scoring model<select defaultValue="Illustrative SME model"><option>Illustrative SME model</option><option>Conservative model</option></select></label></div></div></>; }
 function BuildingIcon() { return <Box size={19} />; }
 function FindingModal({ finding, onClose, onResolve }: { finding: Finding; onClose: () => void; onResolve: (id: number) => void }) { const [confirm, setConfirm] = useState(false); return <div className="modal-backdrop" onClick={onClose}><div className="finding-modal" onClick={(e) => e.stopPropagation()}><div className="modal-head"><div><span className="eyebrow">Finding detail</span><h2>{finding.title}</h2></div><button className="icon-btn" onClick={onClose}><X size={18} /></button></div><div className="modal-meta"><SeverityTag severity={finding.severity} /><span><Box size={14} /> {finding.resource}</span><span><BookOpen size={14} /> {finding.category}</span><span className={`finding-status ${finding.status.toLowerCase()}`}>{finding.status}</span></div><div className="modal-body"><div className="detail-block"><span className="detail-label">Description</span><p>{finding.description}</p></div><div className="detail-block"><span className="detail-label">Business impact</span><p>{finding.impact}</p></div><div className="detail-block"><span className="detail-label">Technical evidence</span><pre>{finding.evidence}</pre></div><div className="solution"><ShieldCheck size={18} /><div><span className="detail-label">Recommended solution</span><p>{finding.recommendation}</p></div></div></div>{finding.status === 'Open' && <div className="modal-foot">{confirm ? <><span>Simulate this fix for <strong>{finding.resource}</strong>?</span><div><button className="secondary-btn" onClick={() => setConfirm(false)}>Cancel</button><button className="primary-btn" onClick={() => onResolve(finding.id)}><Check size={15} /> Approve simulated fix</button></div></> : <><span><Zap size={15} /> Demo mode: no cloud changes will occur</span><button className="primary-btn" onClick={() => setConfirm(true)}>Simulate fix <ChevronRight size={14} /></button></>}</div>}</div></div>; }
 function DemoModal({ onClose }: { onClose: () => void }) { return <div className="modal-backdrop" onClick={onClose}><div className="demo-modal" onClick={(e) => e.stopPropagation()}><div className="demo-symbol"><Sparkles size={26} /></div><h2>About demo mode</h2><p>CloudGuard SME is showing realistic simulated AWS data so you can explore the experience safely. It is not connected to live cloud accounts, and actions such as remediation only update this browser session.</p><div className="demo-points"><span><CheckCircle2 size={16} /> No AWS credentials are requested</span><span><CheckCircle2 size={16} /> Findings are illustrative</span><span><CheckCircle2 size={16} /> Remediation never changes infrastructure</span></div><button className="primary-btn full" onClick={onClose}>Continue exploring</button></div></div>; }
+function ScanModal({ onClose, backendHealth, onScanComplete }: { onClose: () => void; backendHealth: BackendHealth | null; onScanComplete: (res: ScanResponse) => void }) {
+  const [mode, setMode] = useState<'demo' | 'aws'>('demo');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ScanResponse | null>(null);
+
+  const handleScan = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await runS3Scan(mode);
+      setResult(res);
+      onScanComplete(res);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Scan failed';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="scan-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><span className="eyebrow">FastAPI & Boto3</span><h2>S3 Cloud Security Scanner</h2></div>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body">
+          <div className="backend-status-pill">
+            <span className="live-dot" style={{ background: backendHealth ? '#49c68d' : '#e6a63b' }} />
+            <span>Backend API: <strong>{backendHealth ? 'Online (FastAPI port 8000)' : 'Offline / Standalone simulation mode'}</strong></span>
+          </div>
+          {!result ? (
+            <>
+              <div className="scan-mode-selector">
+                <label className={`scan-mode-option ${mode === 'demo' ? 'active' : ''}`}>
+                  <input type="radio" name="scanMode" value="demo" checked={mode === 'demo'} onChange={() => setMode('demo')} />
+                  <div>
+                    <strong>Demo Scan (Fast & Safe)</strong>
+                    <p>Scans simulated S3 assets with no AWS account required. Tests Public Access Block, bucket encryption, and versioning.</p>
+                  </div>
+                </label>
+                <label className={`scan-mode-option ${mode === 'aws' ? 'active' : ''} ${!backendHealth?.aws_role_configured ? 'disabled' : ''}`}>
+                  <input type="radio" name="scanMode" value="aws" checked={mode === 'aws'} disabled={!backendHealth?.aws_role_configured} onChange={() => setMode('aws')} />
+                  <div>
+                    <strong>Live AWS STS Scan (Read-Only)</strong>
+                    <p>Assumes customer cross-account role with external ID to check S3 bucket posture without writing or reading object data.</p>
+                    {!backendHealth?.aws_role_configured && <small className="scan-mode-note">Set CLOUDGUARD_AWS_ROLE_ARN and CLOUDGUARD_AWS_EXTERNAL_ID in backend/.env</small>}
+                  </div>
+                </label>
+              </div>
+              {error && (
+                <div className="scan-error-block">
+                  <AlertCircle size={16} />
+                  <div>
+                    <strong>Scan failed</strong>
+                    <p>{error}</p>
+                    <small>Run <code>cd backend && uvicorn app.main:app --port 8000</code> in your terminal to start the backend server.</small>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="scan-success-block">
+              <div className="scan-success-header">
+                <CheckCircle2 size={24} />
+                <div>
+                  <h4>S3 Scan Completed!</h4>
+                  <span>Scan ID: <code>{result.id.slice(0, 8)}...</code> · Account: <code>{result.account_id}</code> · Region: <code>{result.region}</code></span>
+                </div>
+              </div>
+              <div className="scan-stat-row">
+                <div><span>Total Findings</span><strong>{result.summary.total_findings}</strong></div>
+                <div><span>Critical</span><strong className="red-text">{result.summary.critical}</strong></div>
+                <div><span>High</span><strong className="orange-text">{result.summary.high}</strong></div>
+                <div><span>Medium</span><strong>{result.summary.medium}</strong></div>
+              </div>
+              <p className="scan-imported-note"><Check size={14} /> Findings have been imported into your dashboard and risk score.</p>
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          {!result ? (
+            <>
+              <button className="secondary-btn" onClick={onClose} disabled={loading}>Cancel</button>
+              <button className="primary-btn" onClick={handleScan} disabled={loading}>
+                <RefreshCw size={15} className={loading ? 'spin' : ''} /> {loading ? 'Running S3 Scanner...' : 'Start S3 Assessment'}
+              </button>
+            </>
+          ) : (
+            <button className="primary-btn full" onClick={onClose}>View Updated Posture</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default App;
