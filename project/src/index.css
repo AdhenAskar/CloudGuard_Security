@@ -209,3 +209,58 @@ html.dark .demo-modal h2 { color: #e4eef9; }
 html.dark .demo-modal > p { color: #8ca1b8; }
 html.dark .demo-points { background: #0c1624; border: 1px solid #18283e; }
 html.dark .demo-points span { color: #8ea2b7; }
+
+
+/* Priority Guidance Sliding Styles */
+.recommendations-head-actions { display: flex; align-items: center; gap: 14px; }
+.recommendations-badge { font-size: 10px; font-weight: 700; color: #246ad1; background: #eaf2ff; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
+.slider-nav-group { display: flex; align-items: center; gap: 6px; }
+.slider-nav-btn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; border: 1px solid #dce4ec; background: white; color: #4b6279; cursor: pointer; transition: all .2s; }
+.slider-nav-btn:hover:not(:disabled) { background: #f0f6ff; border-color: #bcd5f5; color: #2067ce; }
+.slider-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: #e5ebf0; }
+.guidance-slider-container { position: relative; margin-top: 14px; }
+.guidance-card-slider { display: flex; gap: 14px; overflow-x: auto; scroll-behavior: smooth; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 4px 2px 10px; }
+.guidance-card-slider::-webkit-scrollbar { display: none; }
+.guidance-slide-card { flex: 0 0 calc((100% - 28px) / 3); min-width: 290px; max-width: 440px; scroll-snap-align: start; border: 1px solid #e3e9f0; border-radius: 9px; background: #ffffff; padding: 16px 18px 14px; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; box-shadow: 0 2px 8px #26384a0a; transition: all .22s cubic-bezier(0.16, 1, 0.3, 1); }
+.guidance-slide-card:hover { transform: translateY(-2px); border-color: #bad3f5; box-shadow: 0 8px 20px #244b7914; }
+.guidance-card-top { display: flex; align-items: center; gap: 8px; }
+.guidance-category { margin-left: auto; font-size: 10px; color: #8495a6; font-weight: 600; }
+.guidance-card-body { display: flex; flex-direction: column; gap: 7px; }
+.guidance-resource { display: inline-flex; align-items: center; gap: 5px; color: #5c7288; font-size: 10px; }
+.guidance-resource code { font-family: monospace; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #3b5269; font-size: 10px; }
+.guidance-title { margin: 2px 0 0; color: #21354c; font: 700 13px 'Plus Jakarta Sans', sans-serif; line-height: 1.35; }
+.guidance-recommendation { margin: 0; color: #697d92; font-size: 11px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.guidance-card-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eff3f6; padding-top: 11px; margin-top: 2px; }
+.guidance-action-text { font-size: 10px; font-weight: 700; color: #276ecc; }
+.guidance-arrow-btn { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #edf5ff; color: #2974d6; transition: transform .2s, background .2s, color .2s; }
+.guidance-slide-card:hover .guidance-arrow-btn { transform: translateX(3px); background: #256ad1; color: white; }
+.slider-pagination-dots { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; }
+.slider-dot { width: 6px; height: 6px; border-radius: 50%; background: #dbe4ec; cursor: pointer; border: 0; padding: 0; transition: all .2s; }
+.slider-dot.active { width: 18px; border-radius: 4px; background: #256ad1; }
+
+/* Dark mode for Priority Guidance Sliding */
+html.dark .recommendations-badge { color: #6ea7f3; background: #152945; }
+html.dark .slider-nav-btn { background: #142236; border-color: #1f3552; color: #cfdeee; }
+html.dark .slider-nav-btn:hover:not(:disabled) { background: #1c2e48; border-color: #2b4970; color: #5da3f9; }
+html.dark .slider-nav-btn:disabled { border-color: #162438; color: #4b6075; }
+html.dark .guidance-slide-card { background: #111d2e; border-color: #1a2c42; box-shadow: 0 2px 10px #00000030; }
+html.dark .guidance-slide-card:hover { border-color: #2b4970; box-shadow: 0 8px 24px #00000060; }
+html.dark .guidance-category { color: #798ea3; }
+html.dark .guidance-resource { color: #8da1b6; }
+html.dark .guidance-resource code { background: #0c1523; color: #87b2df; }
+html.dark .guidance-title { color: #e4eef9; }
+html.dark .guidance-recommendation { color: #8da1b6; }
+html.dark .guidance-card-footer { border-top-color: #18283e; }
+html.dark .guidance-action-text { color: #5da3f9; }
+html.dark .guidance-arrow-btn { background: #152842; color: #5da3f9; }
+html.dark .guidance-slide-card:hover .guidance-arrow-btn { background: #256ad1; color: white; }
+html.dark .slider-dot { background: #1d2f46; }
+html.dark .slider-dot.active { background: #3e88ec; }
+
+@media (max-width: 1024px) {
+  .guidance-slide-card { flex: 0 0 calc((100% - 14px) / 2); }
+}
+@media (max-width: 640px) {
+  .guidance-slide-card { flex: 0 0 88%; min-width: 260px; }
+  .recommendations-head-actions .text-btn { display: none; }
+}
