@@ -1,19 +1,8 @@
 import { useState } from 'react';
 import { ShieldCheck, Eye, EyeOff, Moon, Sun, AlertCircle, KeyRound, Users } from 'lucide-react';
+import type { User, Role, Theme } from './types';
 
-type Role = 'admin' | 'user';
-
-type User = {
-  name: string;
-  email: string;
-  role: Role;
-  title: string;
-  initials: string;
-};
-
-type Theme = 'light' | 'dark';
-
-// Demo credentials for preview
+// Demo credentials — swap these out or replace with a real auth call later
 const DEMO_ACCOUNTS: Record<string, { password: string; user: User }> = {
   'admin@cloudguard.io': {
     password: 'admin123',
@@ -55,7 +44,6 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: LoginPageProps) {
     setError('');
     setLoading(true);
 
-    // Simulate a brief loading delay
     setTimeout(() => {
       const account = DEMO_ACCOUNTS[email.toLowerCase()];
       if (account && account.password === password) {
@@ -77,7 +65,6 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: LoginPageProps) {
 
   return (
     <div className="login-shell">
-      {/* Theme toggle */}
       <button
         className="login-theme-toggle icon-btn"
         onClick={onToggleTheme}
@@ -88,7 +75,6 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: LoginPageProps) {
       </button>
 
       <div className="login-card">
-        {/* Brand */}
         <div className="login-brand">
           <div className="login-brand-mark">
             <ShieldCheck size={22} />
@@ -153,15 +139,10 @@ export function LoginPage({ onLogin, theme, onToggleTheme }: LoginPageProps) {
             className="login-submit primary-btn"
             disabled={loading || !email || !password}
           >
-            {loading ? (
-              <span className="login-spinner" />
-            ) : (
-              'Sign in'
-            )}
+            {loading ? <span className="login-spinner" /> : 'Sign in'}
           </button>
         </form>
 
-        {/* Quick access demo buttons */}
         <div className="login-divider">
           <span>or use a demo account</span>
         </div>

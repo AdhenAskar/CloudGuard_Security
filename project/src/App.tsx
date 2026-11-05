@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LoginPage } from './LoginPage';
+import type { User, Role, Theme } from './types';
 import {
   Activity, AlertCircle, ArrowDown, ArrowUp, Bell, BookOpen, Box, Check,
   CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Cloud, Database,
@@ -13,16 +14,6 @@ import { checkBackendHealth, runS3Scan, type BackendHealth, type ScanResponse } 
 type Page = 'Overview' | 'Cloud Assets' | 'Security Findings' | 'IAM Security' | 'Storage Security' | 'Network Security' | 'Compliance' | 'Remediation Center' | 'Security Reports' | 'Settings';
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
 type FindingStatus = 'Open' | 'Resolved';
-type Theme = 'light' | 'dark';
-type Role = 'admin' | 'user';
-
-type User = {
-  name: string;
-  email: string;
-  role: Role;
-  title: string;
-  initials: string;
-};
 
 const defaultUsers: Record<Role, User> = {
   admin: {
