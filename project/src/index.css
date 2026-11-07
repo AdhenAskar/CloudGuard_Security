@@ -407,3 +407,115 @@ html.dark .scan-stat-row span { color: #798ea3; }
 /* Logout button in sidebar */
 .logout-btn { margin-left: auto; color: #7890aa; }
 .logout-btn:hover { color: #df7070; }
+
+/* ── Login portal wrapper & tabs ───────────────────────────────────────────── */
+.login-portal-wrap { width: 100%; max-width: 960px; display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+.login-portal-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+.login-portal-brand strong { font: 700 16px 'Plus Jakarta Sans', sans-serif; color: #1a2d42; letter-spacing: -.3px; }
+.login-portal-brand span { color: #8596a8; font-size: 11px; margin-left: 4px; }
+.dark .login-portal-brand strong { color: #d4e4f5; }
+.dark .login-portal-brand span { color: #6888a4; }
+
+.login-portal-tabs { display: flex; gap: 4px; background: #e8eef5; border-radius: 9px; padding: 4px; margin-bottom: 18px; }
+.dark .login-portal-tabs { background: #1a2d45; }
+.login-tab { display: flex; align-items: center; gap: 7px; padding: 8px 18px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #6b8098; background: transparent; border: none; cursor: pointer; transition: all .15s; }
+.login-tab:hover { color: #2e5080; background: #d8e6f5; }
+.login-tab.active { background: white; color: #1e3d5c; box-shadow: 0 1px 4px #1e3d5c14; }
+.dark .login-tab { color: #5b7a95; }
+.dark .login-tab:hover { color: #9dc4e0; background: #1e3450; }
+.dark .login-tab.active { background: #0f1e30; color: #a8d0ea; box-shadow: 0 1px 4px #00000033; }
+
+/* ── User card layout (standard) ───────────────────────────────────────────── */
+.user-card-layout { width: 420px; }
+
+/* ── Admin card layout (wide two-column) ───────────────────────────────────── */
+.admin-card-layout { width: 100%; max-width: 900px; padding: 0; overflow: hidden; }
+
+.admin-login-grid { display: grid; grid-template-columns: 360px 1fr; min-height: 560px; }
+
+.admin-login-left { padding: 34px 32px; border-right: 1px solid #e8eef5; display: flex; flex-direction: column; }
+.dark .admin-login-left { border-color: #1e3450; }
+
+.admin-portal-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 5px; background: #fff3e0; color: #b96f1a; font-size: 10px; font-weight: 700; border: 1px solid #f5d9aa; margin-bottom: 14px; letter-spacing: .03em; }
+.dark .admin-portal-badge { background: #2a1e0a; border-color: #5c3d10; color: #e0a456; }
+
+.login-form-compact .login-form { gap: 13px; }
+
+/* ── Admin right panel ──────────────────────────────────────────────────────── */
+.admin-login-right { padding: 24px 24px 0; display: flex; flex-direction: column; background: #f8fafd; overflow: hidden; }
+.dark .admin-login-right { background: #0d1a28; }
+
+.admin-activity-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; color: #6a8099; }
+.admin-activity-header h3 { font: 700 14px 'Plus Jakarta Sans', sans-serif; color: #1d3249; margin: 4px 0 0; }
+.dark .admin-activity-header h3 { color: #cce0f0; }
+.dark .admin-activity-header { color: #4d6a84; }
+
+.eyebrow-small { display: block; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8da5bb; }
+.dark .eyebrow-small { color: #4d6a84; }
+
+.admin-activity-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.activity-stat { display: flex; align-items: center; gap: 8px; padding: 10px 11px; border-radius: 7px; background: white; border: 1px solid #e5edf5; color: #3a9672; }
+.activity-stat.failed { color: #c85b58; }
+.dark .activity-stat { background: #0f1e2e; border-color: #1a3048; }
+.activity-stat strong { display: block; font: 700 16px 'Plus Jakarta Sans', sans-serif; color: #1d3249; }
+.dark .activity-stat strong { color: #cce0f0; }
+.activity-stat span { display: block; font-size: 9px; color: #8fa5bb; margin-top: 1px; }
+
+.admin-event-list { flex: 1; overflow-y: auto; max-height: 340px; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.admin-event-list::-webkit-scrollbar { width: 4px; }
+.admin-event-list::-webkit-scrollbar-track { background: transparent; }
+.admin-event-list::-webkit-scrollbar-thumb { background: #cdd8e3; border-radius: 4px; }
+.dark .admin-event-list::-webkit-scrollbar-thumb { background: #2c4a62; }
+
+.admin-event-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 11px; border-radius: 7px; background: white; border: 1px solid #edf2f7; transition: border-color .12s; }
+.admin-event-row:hover { border-color: #bdd3ea; }
+.admin-event-row.failed { background: #fffaf9; border-color: #f5e0de; }
+.dark .admin-event-row { background: #0f1e2e; border-color: #1a3048; }
+.dark .admin-event-row.failed { background: #1e1010; border-color: #4a2020; }
+
+.admin-event-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; flex: none; }
+.admin-event-avatar.admin { color: #2462b0; background: #ddeeff; }
+.admin-event-avatar.user  { color: #29846a; background: #ddf5ec; }
+.admin-event-avatar.failed { color: #9b4343; background: #ffe4e3; }
+.dark .admin-event-avatar.admin { color: #6aadec; background: #0d2540; }
+.dark .admin-event-avatar.user  { color: #50c49a; background: #091e16; }
+.dark .admin-event-avatar.failed { color: #e08080; background: #2a1010; }
+
+.admin-event-info { flex: 1; min-width: 0; }
+.admin-event-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.admin-event-top strong { font-size: 11px; color: #2d4560; }
+.dark .admin-event-top strong { color: #aac8de; }
+.admin-event-email { display: block; font-size: 9px; color: #8fa5bb; margin: 2px 0 4px; }
+.admin-event-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-event-meta span { display: flex; align-items: center; gap: 3px; font-size: 9px; color: #96aabf; }
+.dark .admin-event-meta span { color: #4d6a84; }
+
+.admin-event-status { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.admin-event-status.success { color: #28916b; background: #e6f7f0; }
+.admin-event-status.failed  { color: #c05452; background: #fff0ee; }
+.dark .admin-event-status.success { color: #50c49a; background: #091e16; }
+.dark .admin-event-status.failed  { color: #e08080; background: #2a1010; }
+
+.admin-event-ip { font-size: 9px; font-family: monospace; color: #7a96ae; white-space: nowrap; padding-top: 2px; }
+.dark .admin-event-ip { color: #3d6480; }
+
+.admin-activity-footer { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 12px 0; color: #2d6ec5; background: transparent; font-size: 11px; font-weight: 600; border-top: 1px solid #e5edf5; margin-top: 4px; }
+.dark .admin-activity-footer { border-color: #1a3048; color: #5ba0e8; }
+.admin-activity-footer:hover { color: #1a55aa; }
+
+/* ── Role badge in sidebar ──────────────────────────────────────────────────── */
+.role-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; }
+.role-badge.admin { color: #2462b0; background: #ddeeff; }
+.role-badge.user  { color: #29846a; background: #ddf5ec; }
+.dark .role-badge.admin { color: #6aadec; background: #0d2540; }
+.dark .role-badge.user  { color: #50c49a; background: #091e16; }
+
+/* ── Responsive: stack admin grid on small screens ─────────────────────────── */
+@media (max-width: 800px) {
+  .admin-login-grid { grid-template-columns: 1fr; }
+  .admin-login-left { border-right: none; border-bottom: 1px solid #e8eef5; }
+  .dark .admin-login-left { border-color: #1e3450; }
+  .admin-card-layout { max-width: 420px; }
+  .user-card-layout  { max-width: 420px; }
+}
